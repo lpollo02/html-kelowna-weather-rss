@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
@@ -29,12 +30,18 @@
   .current {
     padding: 1rem;
     border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
   }
   .forecast {
     display: grid;
     grid-template-columns: 1fr;
   }
   .day {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
     padding: 0.75rem 1rem;
     border-top: 1px solid #eee;
   }
@@ -47,6 +54,11 @@
   .temp {
     color: #0056b4;
     font-weight: bold;
+  }
+  .icon {
+    width: 48px;
+    height: 48px;
+    flex-shrink: 0;
   }
   .loading {
     text-align: center;
@@ -71,6 +83,25 @@
 const feedUrl = "https://weather.gc.ca/rss/weather/49.883_-119.483_e.xml";
 const container = document.getElementById("weather");
 
+function getIconUrl(title) {
+  const lower = title.toLowerCase();
+  let code = "30"; // default: cloudy
+
+  if (lower.includes("sunny")) code = "00";
+  else if (lower.includes("mainly sunny")) code = "01";
+  else if (lower.includes("partly cloudy") || lower.includes("a mix of sun and cloud")) code = "02";
+  else if (lower.includes("cloudy periods")) code = "03";
+  else if (lower.includes("cloudy")) code = "06";
+  else if (lower.includes("rain") || lower.includes("showers")) code = "12";
+  else if (lower.includes("snow")) code = "15";
+  else if (lower.includes("flurries")) code = "16";
+  else if (lower.includes("thunder")) code = "19";
+  else if (lower.includes("fog")) code = "23";
+  else if (lower.includes("clear")) code = "31";
+
+  return `https://weather.gc.ca/weathericons/${code}.png`;
+}
+
 async function loadWeather() {
   try {
     const res = await fetch(feedUrl);
@@ -87,15 +118,21 @@ async function loadWeather() {
       <div class="weather-header">Kelowna Weather</div>
       <div class="current">
         ${current ? `
-          <div class="condition">${current.querySelector("title").textContent}</div>
-          <div>${current.querySelector("summary").textContent.replace(/\[CDATA\[|\]\]/g, '')}</div>
+          <img class="icon" src="${getIconUrl(current.querySelector("title").textContent)}" alt="">
+          <div>
+            <div class="condition">${current.querySelector("title").textContent}</div>
+            <div>${current.querySelector("summary").textContent.replace(/\[CDATA\[|\]\]/g, '')}</div>
+          </div>
         ` : `<div>No current conditions available.</div>`}
       </div>
       <div class="forecast">
         ${forecasts.map(f => `
           <div class="day">
-            <div class="condition">${f.querySelector("title").textContent}</div>
-            <div>${f.querySelector("summary").textContent}</div>
+            <img class="icon" src="${getIconUrl(f.querySelector("title").textContent)}" alt="">
+            <div>
+              <div class="condition">${f.querySelector("title").textContent}</div>
+              <div>${f.querySelector("summary").textContent}</div>
+            </div>
           </div>
         `).join('')}
       </div>
@@ -111,9 +148,8 @@ async function loadWeather() {
   }
 }
 
-// Initial load + refresh every 30 minutes
 loadWeather();
-setInterval(loadWeather, 1800000);
+setInterval(loadWeather, 1800000); // every 30 minutes
 </script>
 
 </body>
