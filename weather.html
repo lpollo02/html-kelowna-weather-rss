@@ -119,9 +119,11 @@
         const current = entries.find((e) =>
           e.querySelector("category[term='Current Conditions']")
         );
-        const forecasts = entries.filter((e) =>
-          e.querySelector("category[term='Weather Forecasts']")
-        );
+       const forecasts = entries.filter((e) => {
+          const cat = e.querySelector("category[term='Weather Forecasts']");
+          const title = e.querySelector("title")?.textContent.toLowerCase() || "";
+          return cat && !title.includes("night");
+        });
 
         renderWeather(current, forecasts);
       } catch (err) {
