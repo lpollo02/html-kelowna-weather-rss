@@ -51,10 +51,6 @@
   .condition {
     font-weight: 600;
   }
-  .temp {
-    color: #0056b4;
-    font-weight: bold;
-  }
   .icon {
     width: 48px;
     height: 48px;
@@ -80,16 +76,18 @@
 </div>
 
 <script>
-const feedUrl = "https://api.allorigins.win/raw?url=https://weather.gc.ca/rss/weather/49.883_-119.483_e.xml";
+const feedBase = "https://weather.gc.ca/rss/weather/49.883_-119.483_e.xml";
+const proxyBase = "https://api.allorigins.win/raw?url=";
 const container = document.getElementById("weather");
 
+// Pick icon based on text keywords
 function getIconUrl(title) {
   const lower = title.toLowerCase();
   let code = "30"; // default: cloudy
 
-  if (lower.includes("sunny")) code = "00";
+  if (lower.includes("sunny") && !lower.includes("mainly")) code = "00";
   else if (lower.includes("mainly sunny")) code = "01";
-  else if (lower.includes("partly cloudy") || lower.includes("a mix of sun and cloud")) code = "02";
+  else if (lower.includes("partly") || lower.includes("mix of sun and cloud")) code = "02";
   else if (lower.includes("cloudy periods")) code = "03";
   else if (lower.includes("cloudy")) code = "06";
   else if (lower.includes("rain") || lower.includes("showers")) code = "12";
@@ -102,17 +100,31 @@ function getIconUrl(title) {
   return `https://weather.gc.ca/weathericons/${code}.png`;
 }
 
+// Load & render the XML feed
 async function loadWeather() {
   try {
-    const res = await fetch(feedUrl);
-    if (!res.ok) throw new Error("Failed to fetch");
-    const xml = await res.text();
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xml, "application/xml");
+    let xmlText;
+    try {
+      const res = await fetch(feedBase);
+      if (!res.ok) throw new Error("Direct fetch failed");
+      xmlText = await res.text();
+    } catch (e) {
+      console.warn("Direct fetch blocked, retrying via proxy...");
+      const res2 = await fetch(proxyBase + encodeURIComponent(feedBase));
+      if (!res2.ok) throw new Error("Proxy fetch failed");
+      xmlText = await res2.text();
+    }
 
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xmlText, "application/xml");
     const entries = [...doc.querySelectorAll("entry")];
-    const current = entries.find(e => e.querySelector("category")?.getAttribute("term") === "Current Conditions");
-    const forecasts = entries.filter(e => e.querySelector("category")?.getAttribute("term") === "Weather Forecasts");
+
+    const current = entries.find(e =>
+      e.querySelector("category")?.getAttribute("term") === "Current Conditions"
+    );
+    const forecasts = entries.filter(e =>
+      e.querySelector("category")?.getAttribute("term") === "Weather Forecasts"
+    );
 
     let html = `
       <div class="weather-header">Kelowna Weather</div>
@@ -149,7 +161,7 @@ async function loadWeather() {
 }
 
 loadWeather();
-setInterval(loadWeather, 1800000); // every 30 minutes
+setInterval(loadWeather, 1800000); // refresh every 30 minutes
 </script>
 
 </body>
