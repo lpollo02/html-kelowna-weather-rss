@@ -1,168 +1,197 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Kelowna Weather</title>
-<style>
-  body {
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    background: #f0f3f7;
-    color: #222;
-    margin: 0;
-    padding: 0;
-  }
-  .weather-container {
-    max-width: 400px;
-    margin: 1rem auto;
-    background: white;
-    border-radius: 10px;
-    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
-    overflow: hidden;
-  }
-  .weather-header {
-    background: #0056b4;
-    color: white;
-    padding: 0.75rem 1rem;
-    font-size: 1.2rem;
-    font-weight: 600;
-  }
-  .current {
-    padding: 1rem;
-    border-bottom: 1px solid #ddd;
-    display: flex;
-    align-items: flex-start;
-    gap: 1rem;
-  }
-  .forecast {
-    display: grid;
-    grid-template-columns: 1fr;
-  }
-  .day {
-    display: flex;
-    align-items: flex-start;
-    gap: 0.75rem;
-    padding: 0.75rem 1rem;
-    border-top: 1px solid #eee;
-  }
-  .day:nth-child(even) {
-    background: #f9fafb;
-  }
-  .condition {
-    font-weight: 600;
-  }
-  .icon {
-    width: 48px;
-    height: 48px;
-    flex-shrink: 0;
-  }
-  .loading {
-    text-align: center;
-    padding: 2rem;
-    color: #555;
-  }
-  @media (min-width: 600px) {
-    .weather-container {
-      max-width: 500px;
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Kelowna Weather - Environment Canada Feed</title>
+  <style>
+    body {
+      font-family: "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      color: #111827;
+      margin: 0;
+      padding: 1rem;
     }
-  }
-</style>
+
+    h1 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+      text-align: center;
+    }
+
+    #weather {
+      max-width: 500px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 1rem;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+    }
+
+    .current {
+      text-align: center;
+      padding: 1rem;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    .current img {
+      width: 90px;
+      height: 90px;
+    }
+
+    .current h2 {
+      margin: 0.2rem 0;
+    }
+
+    .forecast {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 0.5rem;
+      padding: 0.75rem;
+    }
+
+    .day {
+      background: #f9fafb;
+      border-radius: 0.5rem;
+      padding: 0.5rem;
+      text-align: center;
+      box-shadow: inset 0 0 0 1px #e5e7eb;
+    }
+
+    .day img {
+      width: 60px;
+      height: 60px;
+    }
+
+    .day h3 {
+      font-size: 0.9rem;
+      margin: 0.4rem 0 0.2rem;
+    }
+
+    .day p {
+      font-size: 0.8rem;
+      color: #374151;
+      margin: 0;
+    }
+
+    #error {
+      text-align: center;
+      color: #b91c1c;
+      padding: 1rem;
+    }
+
+    @media (max-width: 500px) {
+      .forecast {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+      }
+      .day img {
+        width: 50px;
+        height: 50px;
+      }
+    }
+  </style>
 </head>
 <body>
+  <h1>Kelowna Weather</h1>
+  <div id="weather">
+    <div id="error"></div>
+    <div id="content">Loading current conditions...</div>
+  </div>
 
-<div class="weather-container" id="weather">
-  <div class="weather-header">Kelowna Weather</div>
-  <div class="loading">Loading current conditions...</div>
-</div>
+  <script>
+    async function loadWeather() {
+      const feedUrl =
+        "https://weather.gc.ca/rss/weather/49.883_-119.483_e.xml"; // Kelowna
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(
+        feedUrl
+      )}`;
 
-<script>
-const feedBase = "https://weather.gc.ca/rss/weather/49.883_-119.483_e.xml";
-const proxyBase = "https://api.allorigins.win/raw?url=";
-const container = document.getElementById("weather");
+      try {
+        const res = await fetch(proxyUrl);
+        if (!res.ok) throw new Error("Network response was not ok.");
+        const data = await res.json();
+        const xml = new window.DOMParser().parseFromString(
+          data.contents,
+          "text/xml"
+        );
 
-// Pick icon based on text keywords
-function getIconUrl(title) {
-  const lower = title.toLowerCase();
-  let code = "30"; // default: cloudy
+        const entries = Array.from(xml.getElementsByTagName("entry"));
+        const current = entries.find((e) =>
+          e.querySelector("category[term='Current Conditions']")
+        );
+        const forecasts = entries.filter((e) =>
+          e.querySelector("category[term='Weather Forecasts']")
+        );
 
-  if (lower.includes("sunny") && !lower.includes("mainly")) code = "00";
-  else if (lower.includes("mainly sunny")) code = "01";
-  else if (lower.includes("partly") || lower.includes("mix of sun and cloud")) code = "02";
-  else if (lower.includes("cloudy periods")) code = "03";
-  else if (lower.includes("cloudy")) code = "06";
-  else if (lower.includes("rain") || lower.includes("showers")) code = "12";
-  else if (lower.includes("snow")) code = "15";
-  else if (lower.includes("flurries")) code = "16";
-  else if (lower.includes("thunder")) code = "19";
-  else if (lower.includes("fog")) code = "23";
-  else if (lower.includes("clear")) code = "31";
-
-  return `https://weather.gc.ca/weathericons/${code}.png`;
-}
-
-// Load & render the XML feed
-async function loadWeather() {
-  try {
-    let xmlText;
-    try {
-      const res = await fetch(feedBase);
-      if (!res.ok) throw new Error("Direct fetch failed");
-      xmlText = await res.text();
-    } catch (e) {
-      console.warn("Direct fetch blocked, retrying via proxy...");
-      const res2 = await fetch(proxyBase + encodeURIComponent(feedBase));
-      if (!res2.ok) throw new Error("Proxy fetch failed");
-      xmlText = await res2.text();
+        renderWeather(current, forecasts);
+      } catch (err) {
+        document.getElementById("content").innerHTML = "";
+        document.getElementById("error").innerText =
+          "Unable to load data. Please try again later.";
+        console.error(err);
+      }
     }
 
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(xmlText, "application/xml");
-    const entries = [...doc.querySelectorAll("entry")];
+    function getIconUrl(title) {
+      const t = title.toLowerCase();
+      let code = "03d"; // default: cloudy
 
-    const current = entries.find(e =>
-      e.querySelector("category")?.getAttribute("term") === "Current Conditions"
-    );
-    const forecasts = entries.filter(e =>
-      e.querySelector("category")?.getAttribute("term") === "Weather Forecasts"
-    );
+      if (t.includes("sunny") && !t.includes("mainly")) code = "01d";
+      else if (t.includes("mainly sunny")) code = "02d";
+      else if (t.includes("partly") || t.includes("mix of sun and cloud")) code = "02d";
+      else if (t.includes("cloudy periods")) code = "03d";
+      else if (t.includes("cloudy")) code = "04d";
+      else if (t.includes("rain") || t.includes("showers")) code = "09d";
+      else if (t.includes("snow") || t.includes("flurries")) code = "13d";
+      else if (t.includes("thunder")) code = "11d";
+      else if (t.includes("fog")) code = "50d";
+      else if (t.includes("clear")) code = "01d";
 
-    let html = `
-      <div class="weather-header">Kelowna Weather</div>
-      <div class="current">
-        ${current ? `
-          <img class="icon" src="${getIconUrl(current.querySelector("title").textContent)}" alt="">
-          <div>
-            <div class="condition">${current.querySelector("title").textContent}</div>
-            <div>${current.querySelector("summary").textContent.replace(/\[CDATA\[|\]\]/g, '')}</div>
-          </div>
-        ` : `<div>No current conditions available.</div>`}
-      </div>
-      <div class="forecast">
-        ${forecasts.map(f => `
+      return `https://openweathermap.org/img/wn/${code}@2x.png`;
+    }
+
+    function renderWeather(current, forecasts) {
+      const content = document.getElementById("content");
+      document.getElementById("error").innerText = "";
+
+      if (!current) {
+        content.innerHTML = "<p>No current conditions available.</p>";
+        return;
+      }
+
+      const currentTitle = current.querySelector("title")?.textContent ?? "";
+      const currentSummary = current.querySelector("summary")?.textContent ?? "";
+      const currentIcon = getIconUrl(currentTitle);
+
+      const forecastCards = forecasts.slice(0, 7).map((f) => {
+        const title = f.querySelector("title")?.textContent ?? "";
+        const icon = getIconUrl(title);
+        const day = title.split(":")[0];
+        const desc = title.split(":")[1] || "";
+        return `
           <div class="day">
-            <img class="icon" src="${getIconUrl(f.querySelector("title").textContent)}" alt="">
-            <div>
-              <div class="condition">${f.querySelector("title").textContent}</div>
-              <div>${f.querySelector("summary").textContent}</div>
-            </div>
+            <h3>${day}</h3>
+            <img src="${icon}" alt="${desc}">
+            <p>${desc}</p>
           </div>
-        `).join('')}
-      </div>
-    `;
+        `;
+      });
 
-    container.innerHTML = html;
-  } catch (err) {
-    console.error(err);
-    container.innerHTML = `
-      <div class="weather-header">Kelowna Weather</div>
-      <div class="loading">Unable to load data. Please try again later.</div>
-    `;
-  }
-}
+      content.innerHTML = `
+        <div class="current">
+          <img src="${currentIcon}" alt="${currentTitle}">
+          <h2>${currentTitle}</h2>
+          <div>${currentSummary}</div>
+        </div>
+        <div class="forecast">
+          ${forecastCards.join("")}
+        </div>
+      `;
+    }
 
-loadWeather();
-setInterval(loadWeather, 1800000); // refresh every 30 minutes
-</script>
-
+    loadWeather();
+    // Auto-refresh every 30 minutes
+    setInterval(loadWeather, 1800000);
+  </script>
 </body>
 </html>
