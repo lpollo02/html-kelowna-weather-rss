@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Kelowna Weather</title>
+<style>
+  body {
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    background: #f0f3f7;
+    color: #222;
+    margin: 0;
+    padding: 0;
+  }
+  .weather-container {
+    max-width: 400px;
+    margin: 1rem auto;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0 3px 8px rgba(0,0,0,0.15);
+    overflow: hidden;
+  }
+  .weather-header {
+    background: #0056b4;
+    color: white;
+    padding: 0.75rem 1rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+  }
+  .current {
+    padding: 1rem;
+    border-bottom: 1px solid #ddd;
+  }
+  .forecast {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .day {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid #eee;
+  }
+  .day:nth-child(even) {
+    background: #f9fafb;
+  }
+  .condition {
+    font-weight: 600;
+  }
+  .temp {
+    color: #0056b4;
+    font-weight: bold;
+  }
+  .loading {
+    text-align: center;
+    padding: 2rem;
+    color: #555;
+  }
+  @media (min-width: 600px) {
+    .weather-container {
+      max-width: 500px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="weather-container" id="weather">
+  <div class="weather-header">Kelowna Weather</div>
+  <div class="loading">Loading current conditions...</div>
+</div>
+
+<script>
+const feedUrl = "https://weather.gc.ca/rss/weather/49.883_-119.483_e.xml";
+const container = document.getElementById("weather");
+
+async function loadWeather() {
+  try {
+    const res = await fetch(feedUrl);
+    if (!res.ok) throw new Error("Failed to fetch");
+    const xml = await res.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(xml, "application/xml");
+
+    const entries = [...doc.querySelectorAll("entry")];
+    const current = entries.find(e => e.querySelector("category")?.getAttribute("term") === "Current Conditions");
+    const forecasts = entries.filter(e => e.querySelector("category")?.getAttribute("term") === "Weather Forecasts");
+
+    let html = `
+      <div class="weather-header">Kelowna Weather</div>
+      <div class="current">
+        ${current ? `
+          <div class="condition">${current.querySelector("title").textContent}</div>
+          <div>${current.querySelector("summary").textContent.replace(/\[CDATA\[|\]\]/g, '')}</div>
+        ` : `<div>No current conditions available.</div>`}
+      </div>
+      <div class="forecast">
+        ${forecasts.map(f => `
+          <div class="day">
+            <div class="condition">${f.querySelector("title").textContent}</div>
+            <div>${f.querySelector("summary").textContent}</div>
+          </div>
+        `).join('')}
+      </div>
+    `;
+
+    container.innerHTML = html;
+  } catch (err) {
+    console.error(err);
+    container.innerHTML = `
+      <div class="weather-header">Kelowna Weather</div>
+      <div class="loading">Unable to load data. Please try again later.</div>
+    `;
+  }
+}
+
+// Initial load + refresh every 30 minutes
+loadWeather();
+setInterval(loadWeather, 1800000);
+</script>
+
+</body>
+</html>
